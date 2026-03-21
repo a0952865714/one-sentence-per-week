@@ -1,0 +1,409 @@
+
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>可愛英語 52 句隨身聽 - 滿分挑戰版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;800&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Lexend', 'Noto+Sans+TC', sans-serif;
+            background: #fff9f0;
+            min-height: 100vh;
+        }
+        .phrase-card {
+            background: white;
+            border: 3px solid #f0f0f0;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .phrase-card:hover {
+            transform: scale(1.02);
+            border-color: #ffcf81;
+        }
+        .voice-btn {
+            transition: all 0.2s;
+        }
+        .voice-btn:hover {
+            transform: scale(1.1);
+        }
+        .record-btn {
+            transition: all 0.3s;
+        }
+        .recording {
+            background-color: #ef4444 !important;
+            color: white !important;
+            animation: pulse-red 1.5s infinite;
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #fbbf24;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .is-playing {
+            border-color: #fbbf24 !important;
+            background-color: #fffbeb !important;
+        }
+        .score-badge {
+            animation: bounceIn 0.5s ease-out;
+        }
+        .perfect-card {
+            border-color: #fbbf24 !important;
+            background-color: #fffdf5 !important;
+            box-shadow: 0 10px 25px rgba(251, 191, 36, 0.2);
+        }
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-12 relative overflow-x-hidden">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="text-center mb-12">
+            <div class="inline-block p-4 bg-yellow-100 rounded-full mb-4">
+                <span class="text-5xl">🎆</span>
+            </div>
+            <h1 class="text-4xl md:text-6xl font-extrabold text-gray-800 mb-4 tracking-tight">
+                滿分大挑戰
+            </h1>
+            <p class="text-gray-500 text-lg">開口說英文！拿到 <span class="text-orange-500 font-bold">100 分</span> 就會放煙火喔！</p>
+        </header>
+
+        <div class="mb-12 max-w-lg mx-auto relative">
+            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <span>🔍</span>
+            </div>
+            <input type="text" id="searchInput" placeholder="搜尋英文或中文..." 
+                class="w-full pl-12 pr-4 py-4 rounded-full border-2 border-gray-200 focus:border-yellow-400 focus:outline-none shadow-sm transition-all" 
+                onkeyup="filterPhrases()">
+        </div>
+
+        <div id="phraseGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            <!-- 由 JS 生成 -->
+        </div>
+    </div>
+
+    <!-- 狀態提示 -->
+    <div id="loadingOverlay" class="fixed bottom-6 right-6 bg-white border-2 border-yellow-400 p-4 rounded-2xl shadow-2xl flex items-center gap-3 hidden z-50">
+        <div class="loader"></div>
+        <span id="loadingText" class="text-gray-700 font-bold">正在準備...</span>
+    </div>
+
+    <script>
+        const apiKey = ""; 
+        
+        const phrases = [
+            { en: "How's it going?", zh: "最近怎麼樣？", icon: "👋" },
+            { en: "Long time no see!", zh: "好久不見！", icon: "✨" },
+            { en: "Can you help me?", zh: "你能幫我嗎？", icon: "🤝" },
+            { en: "I really appreciate it.", zh: "我真的很感激。", icon: "💖" },
+            { en: "What do you think?", zh: "你覺得呢？", icon: "💡" },
+            { en: "Never mind.", zh: "沒關係 / 別介意。", icon: "🍃" },
+            { en: "That sounds great!", zh: "聽起來很棒！", icon: "🎉" },
+            { en: "I'm on my way.", zh: "我在路上了。", icon: "🏃" },
+            { en: "Take it easy.", zh: "放輕鬆。", icon: "🧘" },
+            { en: "It's up to you.", zh: "由你決定。", icon: "🎯" },
+            { en: "I'm not sure.", zh: "我不確定。", icon: "🤔" },
+            { en: "See you later!", zh: "待會見！", icon: "👋" },
+            { en: "Have a nice day!", zh: "祝你有美好的一天！", icon: "☀️" },
+            { en: "You're welcome.", zh: "不客氣。", icon: "😊" },
+            { en: "Excuse me.", zh: "不好意思。", icon: "✋" },
+            { en: "I'm sorry to hear that.", zh: "很遺憾聽到這件事。", icon: "😢" },
+            { en: "What's up?", zh: "怎麼了？ / 嘿！", icon: "🤙" },
+            { en: "No problem.", zh: "沒問題。", icon: "👌" },
+            { en: "Wait a minute.", zh: "等一下。", icon: "⏳" },
+            { en: "I don't understand.", zh: "我不明白。", icon: "❓" },
+            { en: "Could you repeat that?", zh: "你能重複一遍嗎？", icon: "👂" },
+            { en: "It doesn't matter.", zh: "沒關係 / 不重要。", icon: "🌈" },
+            { en: "I'm so proud of you.", zh: "我為你感到驕傲。", icon: "🏆" },
+            { en: "Good luck!", zh: "祝好運！", icon: "🍀" },
+            { en: "Keep it up!", zh: "繼續加油！" , icon: "💪"},
+            { en: "I'll be right back.", zh: "我馬上回來。", icon: "🔙" },
+            { en: "What a relief!", zh: "真是鬆了一口氣！", icon: "😌" },
+            { en: "That's a good point.", zh: "那是個很好的觀點。", icon: "☝️" },
+            { en: "I'm starving.", zh: "我快餓死了。", icon: "🍕" },
+            { en: "Believe in yourself.", zh: "相信你自己。", icon: "🌟" },
+            { en: "You can make it.", zh: "你能做到的。", icon: "🌈" },
+            { en: "Let me know.", zh: "讓我知道。", icon: "📩" },
+            { en: "I'm exhausted.", zh: "我累壞了。", icon: "😴" },
+            { en: "Cheer up!", zh: "振作起來！", icon: "🎈" },
+            { en: "By the way...", zh: "順便一提...", icon: "📎" },
+            { en: "Don't worry about it.", zh: "別擔心。", icon: "🛡️" },
+            { en: "I agree with you.", zh: "我同意你。", icon: "✅" },
+            { en: "That's incredible!", zh: "太不可思議了！", icon: "😲" },
+            { en: "How have you been?", zh: "你最近好嗎？", icon: "🌻" },
+            { en: "I'm bored.", zh: "我覺得很無聊。", icon: "🥱" },
+            { en: "Are you kidding?", zh: "你在開玩笑嗎？", icon: "😜" },
+            { en: "It's worth a try.", zh: "值得一試。", icon: "🧪" },
+            { en: "No way!", zh: "不可能！/ 沒門！", icon: "🚫" },
+            { en: "I lost my way.", zh: "我迷路了。", icon: "📍" },
+            { en: "Can I take a message?", zh: "需要我留言嗎？", icon: "📝" },
+            { en: "I'll check it out.", zh: "我會去確認看看。", icon: "🕵️" },
+            { en: "Don't give up.", zh: "不要放棄。", icon: "🧗" },
+            { en: "Time flies.", zh: "時光荏苒。", icon: "🕊️" },
+            { en: "Better late than never.", zh: "遲到總比不到好。", icon: "🐢" },
+            { en: "Keep in touch.", zh: "保持聯繫。", icon: "📞" },
+            { en: "What's the weather like?", zh: "天氣怎麼樣？", icon: "☁️" },
+            { en: "Enjoy your meal!", zh: "祝用餐愉快！", icon: "😋" }
+        ];
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+        }
+
+        function renderPhrases() {
+            const grid = document.getElementById('phraseGrid');
+            grid.innerHTML = phrases.map((p, index) => `
+                <div class="phrase-card p-6 rounded-[2rem] flex flex-col items-center text-center shadow-sm relative overflow-hidden" id="card-${index}">
+                    <div class="text-4xl mb-4 p-4 bg-orange-50 rounded-full">${p.icon}</div>
+                    <div class="mb-4">
+                        <h2 class="text-xl font-extrabold text-gray-800 leading-tight mb-2 px-2">${p.en}</h2>
+                        <p class="text-gray-500 text-sm font-medium">${p.zh}</p>
+                    </div>
+
+                    <div id="score-${index}" class="hidden mb-4 score-badge">
+                        <span class="text-3xl font-black text-orange-500" id="score-val-${index}">0</span>
+                        <span class="text-orange-400 font-bold">pts</span>
+                        <div id="feedback-${index}" class="text-xs font-bold text-gray-400 uppercase mt-1"></div>
+                    </div>
+                    
+                    <div class="flex flex-col gap-2 w-full mt-auto">
+                        <div class="flex items-center gap-2 bg-gray-50 p-2 rounded-2xl w-full justify-center">
+                            <button onclick="playAudio('${p.en.replace(/'/g, "\\'")}', 'female', this)" 
+                                    class="voice-btn w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-xl" title="女聲發音">
+                                👩
+                            </button>
+                            <button onclick="playAudio('${p.en.replace(/'/g, "\\'")}', 'male', this)" 
+                                    class="voice-btn w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-xl" title="男聲發音">
+                                👨
+                            </button>
+                            <div class="w-[1px] h-6 bg-gray-200 mx-1"></div>
+                            <button onclick="startRecording(${index})" 
+                                    id="rec-btn-${index}"
+                                    class="record-btn w-10 h-10 flex items-center justify-center bg-red-50 text-red-500 rounded-xl shadow-sm text-xl" title="點擊跟讀挑戰">
+                                🎤
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="absolute top-4 right-6 text-xs font-bold text-gray-300">#${(index + 1).toString().padStart(2, '0')}</div>
+                </div>
+            `).join('');
+        }
+
+        function filterPhrases() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const cards = document.querySelectorAll('.phrase-card');
+            cards.forEach((card, index) => {
+                const text = (phrases[index].en + phrases[index].zh).toLowerCase();
+                card.style.display = text.includes(query) ? 'flex' : 'none';
+            });
+        }
+
+        async function playAudio(text, gender, btnElement) {
+            const overlay = document.getElementById('loadingOverlay');
+            const loadingText = document.getElementById('loadingText');
+            loadingText.innerText = "正在準備標準音...";
+            overlay.classList.remove('hidden');
+            btnElement.classList.add('is-playing');
+
+            const voiceName = gender === 'female' ? "Kore" : "Puck";
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: text }] }],
+                        generationConfig: {
+                            responseModalities: ["AUDIO"],
+                            speechConfig: {
+                                voiceConfig: {
+                                    prebuiltVoiceConfig: { voiceName: voiceName }
+                                }
+                            }
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                const base64Audio = data.candidates[0].content.parts[0].inlineData.data;
+                const sampleRate = parseInt(data.candidates[0].content.parts[0].inlineData.mimeType.split('rate=')[1]) || 24000;
+                
+                const audioBlob = pcmToWav(base64Audio, sampleRate);
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audio = new Audio(audioUrl);
+                
+                await audio.play();
+                audio.onended = () => btnElement.classList.remove('is-playing');
+
+            } catch (error) {
+                console.error("播放失敗:", error);
+                btnElement.classList.remove('is-playing');
+            } finally {
+                overlay.classList.add('hidden');
+            }
+        }
+
+        function startRecording(index) {
+            if (!recognition) {
+                alert("此瀏覽器不支援語音辨識，請使用 Chrome。");
+                return;
+            }
+
+            const btn = document.getElementById(`rec-btn-${index}`);
+            const overlay = document.getElementById('loadingOverlay');
+            const loadingText = document.getElementById('loadingText');
+            
+            btn.classList.add('recording');
+            loadingText.innerText = "聽著呢，請開口...";
+            overlay.classList.remove('hidden');
+
+            recognition.start();
+
+            recognition.onresult = (event) => {
+                const userText = event.results[0][0].transcript;
+                const originalText = phrases[index].en;
+                const score = calculateScore(originalText, userText);
+                showScore(index, score);
+
+                // 如果 100 分，放煙火
+                if (score === 100) {
+                    triggerFireworks();
+                }
+            };
+
+            recognition.onerror = () => stopEffect(index);
+            recognition.onend = () => stopEffect(index);
+        }
+
+        function stopEffect(index) {
+            const btn = document.getElementById(`rec-btn-${index}`);
+            const overlay = document.getElementById('loadingOverlay');
+            btn.classList.remove('recording');
+            overlay.classList.add('hidden');
+        }
+
+        function calculateScore(original, user) {
+            const clean = (s) => s.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").trim();
+            const s1 = clean(original);
+            const s2 = clean(user);
+            
+            if (s1 === s2) return 100;
+
+            const words1 = s1.split(/\s+/);
+            const words2 = s2.split(/\s+/);
+            
+            let matches = 0;
+            words1.forEach(w => {
+                if (words2.includes(w)) matches++;
+            });
+
+            const matchScore = (matches / words1.length) * 100;
+            const lengthRatio = Math.min(words1.length, words2.length) / Math.max(words1.length, words2.length);
+            
+            return Math.min(99, Math.round(matchScore * lengthRatio));
+        }
+
+        function showScore(index, score) {
+            const scoreArea = document.getElementById(`score-${index}`);
+            const scoreVal = document.getElementById(`score-val-${index}`);
+            const feedback = document.getElementById(`feedback-${index}`);
+            const card = document.getElementById(`card-${index}`);
+            
+            scoreArea.classList.remove('hidden');
+            scoreVal.innerText = score;
+            
+            if (score === 100) {
+                feedback.innerText = "Perfect! 🏆";
+                feedback.className = "text-xs font-bold text-yellow-600 uppercase mt-1";
+                card.classList.add('perfect-card');
+            } else if (score >= 80) {
+                feedback.innerText = "Great! ✨";
+                feedback.className = "text-xs font-bold text-green-500 uppercase mt-1";
+                card.classList.remove('perfect-card');
+            } else {
+                feedback.innerText = "Try Again! 💪";
+                feedback.className = "text-xs font-bold text-orange-400 uppercase mt-1";
+                card.classList.remove('perfect-card');
+            }
+        }
+
+        function triggerFireworks() {
+            const duration = 3 * 1000;
+            const end = Date.now() + duration;
+
+            (function frame() {
+                confetti({
+                    particleCount: 5,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 },
+                    colors: ['#ffcf81', '#fbbf24', '#ff8d1e']
+                });
+                confetti({
+                    particleCount: 5,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 },
+                    colors: ['#ffcf81', '#fbbf24', '#ff8d1e']
+                });
+
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
+        }
+
+        function pcmToWav(base64Pcm, sampleRate) {
+            const binaryString = window.atob(base64Pcm);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+            const buffer = new ArrayBuffer(44 + len);
+            const view = new DataView(buffer);
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+            };
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + len, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, len, true);
+            for (let i = 0; i < len; i++) view.setUint8(44 + i, bytes[i]);
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        window.onload = renderPhrases;
+    </script>
+</body>
+</html>
